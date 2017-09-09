@@ -172,6 +172,11 @@ public:
 	virtual void startProfile_(Network::Channel* pChannel, std::string profileName, int8 profileType, uint32 timelen);
 
 	/**
+		允许脚本assert底层
+	*/
+	static PyObject* __py_assert(PyObject* self, PyObject* args);
+	
+	/**
 		获取apps发布状态, 可在脚本中获取该值
 	*/
 	static PyObject* __py_getAppPublish(PyObject* self, PyObject* args);
@@ -457,19 +462,6 @@ bool EntityApp<E>::installPyModules()
 	pEntities_ = new Entities<E>();
 	registerPyObjectToScript("entities", pEntities_);
 
-	// 安装入口模块
-	PyObject *entryScriptFileName = NULL;
-	if(componentType() == BASEAPP_TYPE)
-	{
-		ENGINE_COMPONENT_INFO& info = g_kbeSrvConfig.getBaseApp();
-		entryScriptFileName = PyUnicode_FromString(info.entryScriptFile);
-	}
-	else if(componentType() == CELLAPP_TYPE)
-	{
-		ENGINE_COMPONENT_INFO& info = g_kbeSrvConfig.getCellApp();
-		entryScriptFileName = PyUnicode_FromString(info.entryScriptFile);
-	}
-
 	// 添加pywatcher支持
 	if(!initializePyWatcher(&this->getScript()))
 		return false;
@@ -477,8 +469,11 @@ bool EntityApp<E>::installPyModules()
 	// 添加globalData, globalBases支持
 	pGlobalData_ = new GlobalDataClient(DBMGR_TYPE, GlobalDataServer::GLOBAL_DATA);
 	registerPyObjectToScript("globalData", pGlobalData_);
-
+	
 	// 注册创建entity的方法到py
+	// 允许assert底层，用于调试脚本某个时机时底层状态
+	APPEND_SCRIPT_MODULE_METHOD(getScript().getModule(),	kbassert,			__py_assert,							METH_VARARGS,	0);
+	
 	// 向脚本注册app发布状态
 	APPEND_SCRIPT_MODULE_METHOD(getScript().getModule(),	publish,			__py_getAppPublish,						METH_VARARGS,	0);
 
@@ -547,11 +542,34 @@ bool EntityApp<E>::installPyModules()
 		}
 	}
 	
-	if(entryScriptFileName != NULL)
+	// 安装入口模块
+	std::string entryScriptFileName = "";
+	if (componentType() == BASEAPP_TYPE)
 	{
-		entryScript_ = PyImport_Import(entryScriptFileName);
-		SCRIPT_ERROR_CHECK();
-		S_RELEASE(entryScriptFileName);
+		ENGINE_COMPONENT_INFO& info = g_kbeSrvConfig.getBaseApp();
+		entryScriptFileName = info.entryScriptFile;
+	}
+	else if (componentType() == CELLAPP_TYPE)
+	{
+		ENGINE_COMPONENT_INFO& info = g_kbeSrvConfig.getCellApp();
+		entryScriptFileName = info.entryScriptFile;
+	}
+
+	if(entryScriptFileName.size() > 0)
+	{
+		PyObject *pyEntryScriptFileName = PyUnicode_FromString(entryScriptFileName.c_str());
+		entryScript_ = PyImport_Import(pyEntryScriptFileName);
+
+		if (PyErr_Occurred())
+		{
+			INFO_MSG(fmt::format("EntityApp::installPyModules: importing scripts/{}{}.py...\n", 
+				(componentType() == BASEAPP_TYPE ? "base/" : "cell/"), 
+				entryScriptFileName));
+
+			PyErr_PrintEx(0);
+		}
+
+		S_RELEASE(pyEntryScriptFileName);
 
 		if(entryScript_.get() == NULL)
 		{
@@ -771,6 +789,13 @@ void EntityApp<E>::onReqAllocEntityID(Network::Channel* pChannel, ENTITY_ID star
 	
 	// INFO_MSG("EntityApp::onReqAllocEntityID: entityID alloc(%d-%d).\n", startID, endID);
 	idClient_.onAddRange(startID, endID);
+}
+
+template<class E>
+PyObject* EntityApp<E>::__py_assert(PyObject* self, PyObject* args)
+{
+	KBE_ASSERT(false && "kbassert");
+	return NULL;
 }
 
 template<class E>
@@ -1407,7 +1432,7 @@ void EntityApp<E>::updateLoad()
 	double spareTime = 1.0;
 	if (lastTickInStamps != 0)
 	{
-		spareTime = double(dispatcher_.getSpareTime())/double(lastTickInStamps);
+		spareTime = double(dispatcher_.getSpareTime()) / double(lastTickInStamps);
 	}
 
 	dispatcher_.clearSpareTime();

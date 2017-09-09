@@ -18,38 +18,33 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef KBE_UPDATABLES_H
-#define KBE_UPDATABLES_H
+#ifndef KBE_UPDATE_DB_SERVER_LOG_HANDLER_H
+#define KBE_UPDATE_DB_SERVER_LOG_HANDLER_H
 
 // common include
 #include "helper/debug_helper.h"
 #include "common/common.h"
-#include "updatable.h"	
-// #define NDEBUG
-// windows include	
-#if KBE_PLATFORM == PLATFORM_WIN32	
-#else
-// linux include
-#endif
 
 namespace KBEngine{
 
-class Updatables
-{
-public:
-	Updatables();
-	~Updatables();
+class UpdateDBServerLogHandler : public TimerHandler
+{	
+public:	
+	UpdateDBServerLogHandler();
 
-	void clear();
-
-	bool add(Updatable* updatable);
-	bool remove(Updatable* updatable);
-
-	void update();
+	~UpdateDBServerLogHandler();
 
 private:
-	std::vector< std::map<uint32, Updatable*> > objects_;
-};
+	virtual void handleTimeout(TimerHandle handle, void * pUser);
+
+	virtual void onRelease( TimerHandle handle, void * /*pUser*/ ){};
+
+	void cancel();
+	
+	TimerHandle* pTimerHandle_;
+};	
+
 
 }
-#endif
+
+#endif // KBE_UPDATE_DB_SERVER_LOG_HANDLER_H

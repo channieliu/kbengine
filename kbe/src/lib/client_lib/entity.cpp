@@ -77,7 +77,8 @@ velocity_(3.0f),
 enterworld_(false),
 isOnGround_(true),
 pMoveHandlerID_(0),
-inited_(false)
+inited_(false),
+isControlled_(false)
 {
 	ENTITY_INIT_PROPERTYS(Entity);
 	script::PyGC::incTracing("Entity");
@@ -266,42 +267,42 @@ void Entity::onUpdatePropertys(MemoryStream& s)
 		if(uid == posuid)
 		{
 			Position3D pos;
-			ArraySize size;
 
 #ifdef CLIENT_NO_FLOAT		
 			int32 x, y, z;
-			s >> size >> x >> y >> z;
+			s >> x >> y >> z;
 
 			pos.x = (float)x;
 			pos.y = (float)y;
 			pos.z = (float)z;
 #else
-			s >> size >> pos.x >> pos.y >> pos.z;
+			s >> pos.x >> pos.y >> pos.z;
 #endif
 			position(pos);
+            clientPos(pos);
 			continue;
 		}
 		else if(uid == diruid)
 		{
 			Direction3D dir;
-			ArraySize size;
 
 #ifdef CLIENT_NO_FLOAT		
 			int32 x, y, z;
-			s >> size >> x >> y >> z;
+			s >> x >> y >> z;
 
 			dir.roll((float)x);
 			dir.pitch((float)y);
 			dir.yaw((float)z);
 #else
 			float yaw, pitch, roll;
-			s >> size >> roll >> pitch >> yaw;
+			s >> roll >> pitch >> yaw;
 			dir.yaw(yaw);
 			dir.pitch(pitch);
 			dir.roll(roll);
 #endif
 
 			direction(dir);
+            clientDir(dir);
 			continue;
 		}
 		else if(uid == spaceuid)
@@ -482,6 +483,7 @@ void Entity::onLeaveWorld()
 //-------------------------------------------------------------------------------------
 void Entity::onEnterSpace()
 {
+	this->stopMove();
 	SCOPED_PROFILE(SCRIPTCALL_PROFILE);
 	SCRIPT_OBJECT_CALL_ARGS0(this, const_cast<char*>("onEnterSpace"));
 }
@@ -492,6 +494,7 @@ void Entity::onLeaveSpace()
 	SCOPED_PROFILE(SCRIPTCALL_PROFILE);
 	spaceID(0);
 	SCRIPT_OBJECT_CALL_ARGS0(this, const_cast<char*>("onLeaveSpace"));
+	this->stopMove();
 }
 
 //-------------------------------------------------------------------------------------
@@ -794,6 +797,15 @@ void Entity::onTimer(ScriptID timerID, int useraAgs)
 		Py_DECREF(pyResult);
 	else
 		SCRIPT_ERROR_CHECK();
+}
+
+//-------------------------------------------------------------------------------------
+void Entity::onControlled(bool p_controlled)
+{
+    isControlled_ = p_controlled;
+
+    PyObject *pyval = p_controlled ? Py_True : Py_False;
+    SCRIPT_OBJECT_CALL_ARGS1(this, const_cast<char*>("onControlled"), const_cast<char*>("O"), pyval);
 }
 
 //-------------------------------------------------------------------------------------

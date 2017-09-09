@@ -225,7 +225,15 @@ bool Bots::installPyModules()
 	if(entryScriptFileName != NULL)
 	{
 		entryScript_ = PyImport_Import(entryScriptFileName);
-		SCRIPT_ERROR_CHECK();
+
+		if (PyErr_Occurred())
+		{
+			INFO_MSG(fmt::format("EntityApp::installPyModules: importing scripts/bots/{}.py...\n",
+				g_kbeSrvConfig.getBots().entryScriptFile));
+
+			PyErr_PrintEx(0);
+		}
+
 		S_RELEASE(entryScriptFileName);
 
 		if(entryScript_.get() == NULL)
@@ -644,12 +652,12 @@ void Bots::onLoginBaseappFailed(Network::Channel * pChannel, SERVER_ERROR_CODE f
 }
 
 //-------------------------------------------------------------------------------------	
-void Bots::onReLoginBaseappSuccessfully(Network::Channel * pChannel, MemoryStream& s)
+void Bots::onReloginBaseappSuccessfully(Network::Channel * pChannel, MemoryStream& s)
 {
 	ClientObject* pClient = findClient(pChannel);
 	if(pClient)
 	{
-		pClient->onReLoginBaseappSuccessfully(pChannel, s);
+		pClient->onReloginBaseappSuccessfully(pChannel, s);
 	}
 }
 
